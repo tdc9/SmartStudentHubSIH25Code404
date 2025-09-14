@@ -1,0 +1,36 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "backend for smart student hub ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.143.x",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.x",
+    "csv-parse": "^5.x",
+    "dotenv": "^17.2.2",
+    "exceljs": "^4.x",
+    "express": "^4.18.2",
+    "express-rate-limit": "^6.x",
+    "helmet": "^6.x",
+    "js-cookie": "^3.0.5",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.8.7",
+    "morgan": "^1.10.x",
+    "multer": "^1.4.x",
+    "multer-s3": "^2.x",
+    "node-cron": "^3.x",
+    "pdfkit": "^0.13.x",
+    "socket.io": "^4.x"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
