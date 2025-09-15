@@ -86,7 +86,8 @@ const Sidebar = ({ isOpen = false, onClose, userRole = 'student', studentName = 
   const handleSignOut = () => {
     localStorage.removeItem("token");
     Cookies.remove("token");
-    navigate("/login");
+    Cookies.remove("role");
+    navigate("/");
   };
 
   const navigationItems = getNavigationItems();

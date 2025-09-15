@@ -1,288 +1,192 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../../contexts/AuthContext';
-import Button from '../../../components/ui/Button';
-import Input from '../../../components/ui/Input';
-import Select from '../../../components/ui/Select';
-import Icon from '../../../components/AppIcon';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import Icon from "../../../components/AppIcon";
+import Input from "../../../components/ui/Input";
+import Button from "../../../components/ui/Button";
+import { Checkbox } from "../../../components/ui/Checkbox";
+import axios from "axios";
+import Cookies from "js-cookie";
 
-const LoginForm = ({ onSwitchToSignup }) => {
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+const LoginForm = ({ onSignUpClick }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login } = useAuth();
+
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    role: ''
+    email: "",
+    password: "",
+    agreeToTerms: false,
   });
-  const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [showMFA, setShowMFA] = useState(false);
-  const [mfaCode, setMfaCode] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const roleOptions = [
-    { value: 'student', label: 'Student' },
-    { value: 'institution', label: 'Institution Admin' },
-    { value: 'government', label: 'Government Officer' }
-  ];
-
-  // Mock credentials for different user types
-  const mockCredentials = {
-    student: { email: 'student@smartstudent.com', password: 'student123' },
-    institution: { email: 'admin@institution.edu', password: 'admin123' },
-    government: { email: 'officer@gov.in', password: 'gov123', mfa: '123456' }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData?.email?.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/?.test(formData?.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData?.password?.trim()) {
-      newErrors.password = 'Password is required';
-    } else if (formData?.password?.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    if (!formData?.role) {
-      newErrors.role = 'Please select your role';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors)?.length === 0;
-  };
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors?.[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e?.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleLogin = async (e) => {
     e?.preventDefault();
-    
-    if (!validateForm()) return;
+    setError("");
 
-    setIsLoading(true);
+    if (!formData?.email || !formData?.password || !formData?.agreeToTerms) {
+      setError("Please fill all fields and accept terms");
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const res = await axios.post(`${API_BASE}/auth/login`, {
+        email: formData.email,
+        password: formData.password,
+        role: "student", // enforce student role on this login form
+      });
 
-      const mockCreds = mockCredentials?.[formData?.role];
+      const token = res.data?.token;
+      const userRole = res.data?.user?.role || "student";
+
+      if (!token) throw new Error("No token returned from server");
+
+      if (userRole !== "student") {
+        // If server says different role, prevent access from this form
+        throw new Error("Only students can access this portal");
+      }
+
+      // Persist token + role
+      Cookies.set("token", token, { expires: 7, secure: true, sameSite: "strict" });
+      Cookies.set("role", userRole, { expires: 7, secure: true, sameSite: "strict" });
+      localStorage.setItem("token", token);
+
+      setShowSuccess(true);
       
-      if (formData?.email !== mockCreds?.email || formData?.password !== mockCreds?.password) {
-        setErrors({ 
-          general: `Invalid credentials. Use ${mockCreds?.email} / ${mockCreds?.password}${mockCreds?.mfa ? ' (MFA: ' + mockCreds?.mfa + ')' : ''}` 
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Check if MFA is required for government officers
-      if (formData?.role === 'government' && !showMFA) {
-        setShowMFA(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // Validate MFA for government officers
-      if (formData?.role === 'government' && showMFA) {
-        if (mfaCode !== mockCredentials?.government?.mfa) {
-          setErrors({ mfa: 'Invalid MFA code. Use: 123456' });
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Successful login
-      const userData = {
-        email: formData?.email,
-        role: formData?.role,
-        name: formData?.role === 'student' ? 'Student User' : 
-              formData?.role === 'institution' ? 'Institution Admin' : 'Government Officer',
-        id: Date.now()?.toString()
-      };
-
-      login(userData);
-
-      // Redirect to intended page or dashboard
-      const from = location?.state?.from?.pathname || '/student-dashboard';
-      const dashboardRoutes = {
-        student: '/student-dashboard',
-        institution: '/institution-dashboard',
-        government: '/institution-dashboard'
-      };
-
-      navigate(from !== '/login' ? from : dashboardRoutes?.[formData?.role]);
+      // Use a brief timeout to allow the "Login successful" message to show
+      // before navigating away. This is better for user experience.
+      setTimeout(() => {
+        navigate("/student-dashboard", { replace: true });
+      }, 1000); // 1-second delay
       
-    } catch (error) {
-      setErrors({ general: 'Login failed. Please try again.' });
+    } catch (err) {
+      // axios error => err.response?.data?.message; fallback to err.message
+      setError(err.response?.data?.message || err.message || "Login failed");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleMFASubmit = (e) => {
-    e?.preventDefault();
-    handleLogin(e);
-  };
-
-  const handleForgotPassword = () => {
-    // In a real app, this would navigate to forgot password page
-    alert('Forgot password functionality would be implemented here');
-  };
-
-  if (showMFA) {
-    return (
-      <div className="w-full max-w-md mx-auto">
-        <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-4">
-              <Icon name="Shield" size={32} color="var(--color-accent-foreground)" />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Multi-Factor Authentication</h2>
-            <p className="text-muted-foreground">
-              Enter the 6-digit code from your authenticator app
-            </p>
-          </div>
-
-          <form onSubmit={handleMFASubmit} className="space-y-6">
-            <Input
-              label="Authentication Code"
-              type="text"
-              placeholder="Enter 6-digit code"
-              value={mfaCode}
-              onChange={(e) => setMfaCode(e?.target?.value)}
-              error={errors?.mfa}
-              maxLength={6}
-              className="text-center text-2xl tracking-widest"
-              required
-            />
-
-            {errors?.general && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                <p className="text-destructive text-sm">{errors?.general}</p>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <Button
-                type="submit"
-                variant="default"
-                fullWidth
-                loading={isLoading}
-                iconName="Shield"
-                iconPosition="left"
-              >
-                Verify & Login
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                fullWidth
-                onClick={() => setShowMFA(false)}
-              >
-                Back to Login
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="GraduationCap" size={32} color="var(--color-primary-foreground)" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Welcome Back</h1>
-          <p className="text-muted-foreground">Sign in to your Smart Student Hub account</p>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="glassmorphism-card p-8 w-full max-w-md mx-auto"
+    >
+      <div className="text-center mb-8">
+        <motion.h1
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-3xl font-bold text-gradient mb-2"
+        >
+          Student Portal Login
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="text-muted-foreground flex items-center justify-center gap-2"
+        >
+          <Icon name="Shield" size={16} />
+          Secure Access to Academic Records
+        </motion.p>
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="Enter your email"
-            value={formData?.email}
-            onChange={(e) => handleInputChange('email', e?.target?.value)}
-            error={errors?.email}
-            required
-          />
+      {error && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-4 p-3 rounded bg-red-100 text-red-600 text-sm text-center"
+        >
+          {error}
+        </motion.div>
+      )}
 
-          <Input
-            label="Password"
-            type="password"
-            placeholder="Enter your password"
-            value={formData?.password}
-            onChange={(e) => handleInputChange('password', e?.target?.value)}
-            error={errors?.password}
-            required
-          />
+      {showSuccess && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mb-6 p-4 rounded-xl bg-green-100 border border-green-300 text-green-700 text-center"
+        >
+          <Icon name="CheckCircle" size={20} className="inline mr-2" />
+          Login successful! Redirecting...
+        </motion.div>
+      )}
 
-          <Select
-            label="Select Role"
-            placeholder="Choose your role"
-            options={roleOptions}
-            value={formData?.role}
-            onChange={(value) => handleInputChange('role', value)}
-            error={errors?.role}
-            required
-          />
+      <form onSubmit={handleLogin} className="space-y-6">
+        <Input
+          type="email"
+          name="email"
+          label="Email Address"
+          placeholder="Enter your email"
+          value={formData?.email}
+          onChange={handleInputChange}
+          required
+        />
 
-          {errors?.general && (
-            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-              <p className="text-destructive text-sm">{errors?.general}</p>
-            </div>
+        <Input
+          type="password"
+          name="password"
+          label="Password"
+          placeholder="Enter your password"
+          value={formData?.password}
+          onChange={handleInputChange}
+          required
+        />
+
+        <Checkbox
+          name="agreeToTerms"
+          label="I agree to the Terms & Conditions and Privacy Policy"
+          checked={formData?.agreeToTerms}
+          onChange={handleInputChange}
+          required
+        />
+
+        <Button
+          type="submit"
+          variant="default"
+          fullWidth
+          disabled={!formData?.agreeToTerms || loading}
+          className="bg-white text-slate-900 hover:bg-white/90 hover:scale-105 transition-all duration-300 shadow-lg font-semibold"
+        >
+          {loading ? (
+            "Authenticating..."
+          ) : (
+            <>
+              <Icon name="LogIn" size={20} className="mr-2" />
+              Login to Portal
+            </>
           )}
+        </Button>
 
-          <div className="flex items-center justify-between">
-            <Button
-              type="button"
-              variant="link"
-              onClick={handleForgotPassword}
-              className="p-0 h-auto text-sm"
-            >
-              Forgot Password?
-            </Button>
-          </div>
-
-          <Button
-            type="submit"
-            variant="default"
-            fullWidth
-            loading={isLoading}
-            iconName="LogIn"
-            iconPosition="left"
-          >
-            Sign In
-          </Button>
-        </form>
-
-        <div className="mt-6 pt-6 border-t border-border text-center">
+        <div className="text-center pt-4 border-t border-white/10">
           <p className="text-muted-foreground text-sm">
-            New to Smart Student Hub?{' '}
-            <Button
-              variant="link"
-              onClick={onSwitchToSignup}
-              className="p-0 h-auto text-sm font-medium"
+            Don’t have an account?{" "}
+            <button
+              type="button"
+              onClick={onSignUpClick}
+              className="text-accent hover:text-accent/80 font-medium underline underline-offset-2"
             >
-              Create Account
-            </Button>
+              Sign Up
+            </button>
           </p>
         </div>
-      </div>
-    </div>
+      </form>
+    </motion.div>
   );
 };
 

@@ -8,9 +8,9 @@ const HeroSection = () => {
 
  const handleRoleSelection = (role) => {
   const roleRoutes = {
-    student: "/student-dashboard",
-    institution: "/institution-dashboard",
-    government: "/government-dashboard",
+    student: "/login",
+    institution: "/institute-login",
+    government: "/government-login",
   };
 
   const path = roleRoutes[role.toLowerCase()]; // in case role is "Student" with caps

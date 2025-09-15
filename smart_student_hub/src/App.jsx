@@ -9,22 +9,45 @@ import LandingPage from "./pages/landing-page";
 import HelpAndSupportContacts from "./pages/help-and-support-contacts";
 import InstitutionDashboard from "./pages/institution-dashboard";
 import GovernmentDashboard from "./pages/government-dashboard";
+import InstituteLoginPortal from "./pages/institute-login-portal";
+import GovLoginPortal from "./pages/government-login-portal";
+import StudentDataManagement from "./pages/student-data-management";
 
-import NotFound from "./pages/NotFound"; // ✅ fixed import
+import NotFound from "./pages/NotFound";
 
-
-// Protected route for logged-in users
-function ProtectedRoute({ children }) {
-  const token = Cookies.get("token");
-  return token ? children : <Navigate to="/login" replace />;
-}
-
-// Auth route for login/register pages
+// ✅ Auth route (redirect if already logged in)
 function AuthRoute({ children }) {
   const token = Cookies.get("token");
-  return token ? <Navigate to="/" replace /> : children;
+  const role = Cookies.get("role");
+
+  if (token) {
+    if (role === "student") return <Navigate to="/student-dashboard" replace />;
+    if (role === "faculty") return <Navigate to="/institution-dashboard" replace />;
+    if (role === "government") return <Navigate to="/government-dashboard" replace />;
+  }
+
+  return children;
 }
 
+// ✅ Protected route (checks login + role)
+function ProtectedRoute({ children, allowedRoles }) {
+  const token = Cookies.get("token");
+  const role = Cookies.get("role");
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    // redirect to the user's correct dashboard
+    if (role === "student") return <Navigate to="/student-dashboard" replace />;
+    if (role === "faculty") return <Navigate to="/institution-dashboard" replace />;
+    if (role === "government") return <Navigate to="/government-dashboard" replace />;
+    return <Navigate to="/" replace />; // fallback
+  }
+
+  return children;
+}
 
 function App() {
   return (
@@ -42,59 +65,80 @@ function App() {
             </AuthRoute>
           }
         />
+        <Route
+          path="/institute-login"
+          element={
+            <AuthRoute>
+              <InstituteLoginPortal />
+            </AuthRoute>
+          }
+        />
+        <Route
+          path="/government-login"
+          element={
+            <AuthRoute>
+              <GovLoginPortal />
+            </AuthRoute>
+          }
+        />
 
-        {/* Student Dashboard */}
+        {/* Student Routes */}
         <Route
           path="/student-dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentDashboard />
             </ProtectedRoute>
           }
         />
-
-        {/* Achievements Tracker */}
         <Route
           path="/achievement-tracker"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["student"]}>
               <AchievementsTracker />
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/student-management"
+          element={
+            <ProtectedRoute allowedRoles={["faculty"]}>
+              <StudentDataManagement />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/student-portfolio"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["student"]}>
               <StudentPortfolio />
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/help"
-          element={
-            <ProtectedRoute>
-              <HelpAndSupportContacts />
-            </ProtectedRoute>
-          }
-        />
+
+        {/* Faculty Routes */}
         <Route
           path="/institution-dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["faculty"]}>
               <InstitutionDashboard />
             </ProtectedRoute>
           }
         />
+
+        {/* Government Routes */}
         <Route
           path="/government-dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["government"]}>
               <GovernmentDashboard />
             </ProtectedRoute>
           }
         />
+
+        {/* Public Help Page */}
+        <Route path="/help" element={<HelpAndSupportContacts />} />
+
         {/* Catch-all → NotFound page */}
         <Route path="*" element={<NotFound />} />
       </Routes>

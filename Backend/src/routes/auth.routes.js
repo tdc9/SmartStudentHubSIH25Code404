@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/user.model'); // make sure you have this model
+const User = require('../models/user.model');
 
 const router = express.Router();
 
@@ -18,29 +18,35 @@ const generateToken = (user) => {
 
 // ===============================
 // @route   POST /api/auth/register
-// @desc    Register new user
+// @desc    Register new student
 // ===============================
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, institute } = req.body;
+
+    // ❌ Prevent signup for non-student roles
+    if (!institute) {
+      return res.status(400).json({ success: false, message: "Institute is required for students" });
+    }
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: "Please provide all required fields" });
     }
 
-    let user = await User.findOne({ email });
-    if (user) {
+    let existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({ success: false, message: "User already exists" });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({
+    const user = new User({
       name,
       email,
       password: hashedPassword,
-      role: role || 'student'
+      role: "student", // enforce student only
+      institute
     });
 
     await user.save();
@@ -49,12 +55,13 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "User registered",
+      message: "Student registered successfully",
       token,
       user: {
         id: user._id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        institute: user.institute
       }
     });
   } catch (err) {
@@ -65,14 +72,17 @@ router.post('/register', async (req, res) => {
 
 // ===============================
 // @route   POST /api/auth/login
-// @desc    Login user
+// @desc    Login student/faculty/gov
+// ===============================
+// ===============================
+// @route   POST /api/auth/login
 // ===============================
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: "Please provide email and password" });
+    if (!email || !password || !role) {
+      return res.status(400).json({ success: false, message: "Email, password, and role are required" });
     }
 
     const user = await User.findOne({ email });
@@ -85,6 +95,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid credentials" });
     }
 
+    // ✅ Role enforcement
+    if (user.role !== role) {
+      return res.status(403).json({ 
+        success: false, 
+        message: `You are registered as ${user.role}, not ${role}` 
+      });
+    }
+
     const token = generateToken(user);
 
     res.json({
@@ -94,7 +112,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        name: user.name
       }
     });
   } catch (err) {
@@ -102,6 +121,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
+
 
 // ===============================
 // Middleware to verify JWT
@@ -128,7 +148,7 @@ const authMiddleware = (req, res, next) => {
 // ===============================
 router.get("/me", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password"); // hide password
+    const user = await User.findById(req.user.id).select("-password");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
@@ -140,12 +160,15 @@ router.get("/me", authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ UPDATE logged-in user profile
+// ===============================
+// @route   PUT /api/auth/me
+// @desc    Update current user profile
+// ===============================
 router.put("/me", authMiddleware, async (req, res) => {
   try {
     const updates = req.body;
 
-    // prevent role/email/password from being updated directly (security)
+    // prevent role/email/password from being updated directly
     delete updates.password;
     delete updates.role;
 
@@ -166,10 +189,12 @@ router.put("/me", authMiddleware, async (req, res) => {
   }
 });
 
-
-
+// ===============================
+// @route   GET /api/auth/logout
+// @desc    Clear token cookie
+// ===============================
 router.get("/logout", (req, res) => {
-    return res.clearCookie("token").redirect("/");
+  return res.clearCookie("token").json({ success: true, message: "Logged out" });
 });
 
 module.exports = router;

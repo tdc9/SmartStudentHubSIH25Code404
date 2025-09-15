@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom'; // ✅ useNavigate added
+import Cookies from 'js-cookie'; // ✅ import Cookies
 import Icon from '../AppIcon';
 import Button from './Button';
 import Input from './Input';
 
-const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studentName = 'Student', onSignOut }) => {
+const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studentName = 'Student' }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -13,7 +14,9 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
     { id: 2, title: 'Portfolio review completed', time: '1 hour ago', unread: true },
     { id: 3, title: 'Institution approval pending', time: '3 hours ago', unread: false },
   ]);
+
   const location = useLocation();
+  const navigate = useNavigate(); // ✅ now available
 
   const handleSearch = (e) => {
     e?.preventDefault();
@@ -24,14 +27,14 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
     }
   };
 
-  const handleProfileAction = (action) => {
-    setIsProfileOpen(false);
-    if (action === 'logout' && onSignOut) {
-      onSignOut();
-    }
-  };
+  const handleSignOut = () => {
+      localStorage.removeItem("token");
+      Cookies.remove("token");
+      Cookies.remove("role");
+      navigate("/");
+  }
 
-  const unreadCount = notifications?.filter(n => n?.unread)?.length;
+  const unreadCount = notifications?.filter((n) => n?.unread)?.length;
 
   const getPageTitle = () => {
     const path = location?.pathname;
@@ -59,12 +62,12 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
             size="icon"
             onClick={onMenuToggle}
             className="lg:hidden"
-            iconName={isMenuOpen ? "X" : "Menu"}
+            iconName={isMenuOpen ? 'X' : 'Menu'}
             iconSize={20}
           >
             <span className="sr-only">Toggle menu</span>
           </Button>
-          
+
           {/* Page Title */}
           <h1 className="text-lg font-semibold text-foreground hidden sm:block">
             {getPageTitle()}
@@ -156,8 +159,8 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
 
             {isProfileOpen && (
               <>
-                <div 
-                  className="fixed inset-0 z-40" 
+                <div
+                  className="fixed inset-0 z-40"
                   onClick={() => setIsProfileOpen(false)}
                 />
                 <div className="absolute right-0 top-full mt-2 w-48 bg-popover border border-border rounded-lg shadow-lg z-50">
@@ -169,14 +172,12 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
                   </div>
                   <div className="py-1">
                     <button
-                      onClick={() => handleProfileAction('profile')}
                       className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                     >
                       <Icon name="User" size={16} />
                       Profile
                     </button>
                     <button
-                      onClick={() => handleProfileAction('settings')}
                       className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                     >
                       <Icon name="Settings" size={16} />
@@ -184,7 +185,7 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
                     </button>
                     <div className="border-t border-border my-1" />
                     <button
-                      onClick={() => handleProfileAction('logout')}
+                      onClick={handleSignOut}
                       className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                     >
                       <Icon name="LogOut" size={16} />
@@ -211,11 +212,7 @@ const Header = ({ onMenuToggle, isMenuOpen = false, userRole = 'student', studen
                 className="flex-1"
                 autoFocus
               />
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setIsSearchOpen(false)}
-              >
+              <Button type="button" variant="ghost" onClick={() => setIsSearchOpen(false)}>
                 Cancel
               </Button>
             </form>
